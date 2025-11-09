@@ -1,0 +1,16 @@
+{
+    "uygulama_adi": "Turco Tekel POS",
+    "firma": "R.M Bili\u015fim",
+    "tam_ekran": true,
+    "tema": "clam",
+    "ui_olcek_taban_yukseklik": 1080,
+    "varsayilan_kdv": 0,
+    "kur_api": "https://open.er-api.com/v6/latest/TRY",
+    "fis_yazdir": false,
+    "kategoriler": [
+        "Alkoll\u00fc",
+        "Alkols\u00fcz",
+        "Sigara",
+        "Market"
+    ]
+}
