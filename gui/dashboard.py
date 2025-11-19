@@ -15,7 +15,7 @@ class Dashboard(ttk.Frame):
     def _build(self):
         top = ttk.Frame(self); top.grid(row=0, column=0, sticky="ew", pady=(0,10))
         ttk.Label(top, text=f"Hoş geldiniz, {self.user['username']}", font=("Segoe UI",22,"bold")).pack(side="left")
-        self.kur_lbl = ttk.Label(top, text="Kurlar yükleniyor...", font=("Segoe UI", 14))
+        self.kur_lbl = ttk.Label(top, text="Kurlar yükleniyor...", font=("Segoe UI Emoji", 24, ))
         self.kur_lbl.pack(side="right")
 
         grid = ttk.Frame(self); grid.grid(row=1, column=0, sticky="nsew", padx=24, pady=24)

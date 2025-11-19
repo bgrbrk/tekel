@@ -3,140 +3,270 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import database
 
+
 class SuppliersScreen(ttk.Frame):
-    def __init__(self, master, on_back):
-        super().__init__(master, padding=8)
-        self.on_back = on_back
-        self._build()
-        self._load_suppliers()
+    def __init__(self, master, on_nav):
+        super().__init__(master, padding=12)
+        self.on_nav = on_nav
+        self._arayuz_olustur()
 
-    def _build(self):
-        top = ttk.Frame(self); top.grid(row=0, column=0, sticky="ew")
-        ttk.Button(top, text="⮌ Ana Menü", command=self.on_back).pack(side="left")
-        ttk.Label(top, text="TOPTANCILAR (CARİ)", font=("Segoe UI", 18, "bold")).pack(side="left", padx=12)
+    # ------------------ ARAYÜZ ------------------ #
+    def _arayuz_olustur(self):
+        ust = ttk.Frame(self)
+        ust.pack(fill="x", pady=(0, 10))
 
-        mid = ttk.Frame(self); mid.grid(row=1, column=0, sticky="nsew", pady=6)
-        self.columnconfigure(0, weight=1)
-        mid.columnconfigure(1, weight=1)
+        # 🔙 Ana Menü
+        btn_ana = tk.Button(
+            ust, text="⬅️ Ana Menü", bg="#800000", fg="white",
+            font=("Segoe UI", 12, "bold"), cursor="hand2",
+            command=self.on_nav  # parametresiz
+        )
+        btn_ana.pack(side="left", padx=(0, 10), ipadx=10, ipady=3)
 
-        # ---------- TOPTANCI TABLOSU ----------
-        self.lst = ttk.Treeview(mid, columns=("ID","TOPTANCI","BAKİYE"), show="headings", height=12)
+        # Başlık
+        ttk.Label(
+            ust, text="🤝 Toptancılar / Cari Yönetimi",
+            font=("Segoe UI", 22, "bold")
+        ).pack(side="left", padx=(0, 10))
 
-        self.lst.heading("ID", text="ID")
-        self.lst.heading("TOPTANCI", text="TOPTANCI")
-        self.lst.heading("BAKİYE", text="BAKİYE")
+        # Sağdaki butonlar
+        btn_yeni = tk.Button(
+            ust, text="➕ Yeni Toptancı", bg="#28a745", fg="white",
+            font=("Segoe UI", 12, "bold"), cursor="hand2",
+            command=self._toptanci_ekle_penceresi
+        )
+        btn_yeni.pack(side="right", padx=5, ipadx=10, ipady=3)
 
-        self.lst.column("ID", width=32, anchor="center")            # ✅ 2 rakam sığacak şekilde küçültüldü
-        self.lst.column("TOPTANCI", width=260, anchor="w")          # ✅ genişletildi
-        self.lst.column("BAKİYE", width=100, anchor="e")
+        btn_cari = tk.Button(
+            ust, text="🧾 Cari Defteri", bg="#007bff", fg="white",
+            font=("Segoe UI", 12, "bold"), cursor="hand2",
+            command=self._cari_defterini_goster
+        )
+        btn_cari.pack(side="right", padx=5, ipadx=10, ipady=3)
 
-        self.lst.pack(side="left", fill="both", expand=True)
+        btn_duzelt = tk.Button(
+            ust, text="✏️ Düzelt", bg="#ffc107", fg="black",
+            font=("Segoe UI", 12, "bold"), cursor="hand2",
+            command=self._toptanci_duzelt_penceresi
+        )
+        btn_duzelt.pack(side="right", padx=5, ipadx=10, ipady=3)
 
-        # ---------- CARİ HAREKET TABLOSU ----------
-        self.ledger = ttk.Treeview(mid, columns=("TARİH","HAREKET","TUTAR","NOT"), show="headings", height=12)
+        btn_sil = tk.Button(
+            ust, text="🗑️ Sil", bg="#dc3545", fg="white",
+            font=("Segoe UI", 12, "bold"), cursor="hand2",
+            command=self._toptanci_sil
+        )
+        btn_sil.pack(side="right", padx=5, ipadx=10, ipady=3)
 
-        self.ledger.heading("TARİH", text="TARİH")
-        self.ledger.heading("HAREKET", text="HAREKET")
-        self.ledger.heading("TUTAR", text="TUTAR")
-        self.ledger.heading("NOT", text="NOT")
+        # Tablo
+        sutunlar = (
+            "id", "ad", "vergi_no", "vergi_dairesi",
+            "sorumlu", "telefon", "adres", "bakiye"
+        )
+        self.liste = ttk.Treeview(self, columns=sutunlar, show="headings", height=18)
+        basliklar = [
+            "ID", "Toptancı Ünvanı", "Vergi No", "Vergi Dairesi",
+            "Sorumlu Kişi", "Telefon", "Adres", "Bakiye (₺)"
+        ]
+        for c, baslik in zip(sutunlar, basliklar):
+            self.liste.heading(c, text=baslik)
+            self.liste.column(c, anchor="w", width=140)
+        self.liste.pack(fill="both", expand=True)
 
-        self.ledger.column("TARİH", width=140, anchor="w")
-        self.ledger.column("HAREKET", width=140, anchor="w")
-        self.ledger.column("TUTAR", width=100, anchor="e")
-        self.ledger.column("NOT", width=200, anchor="w")
+        self._toptancilari_yukle()
 
-        self.ledger.pack(side="left", fill="both", expand=True)
-
-        # ---------- ALT ALAN ----------
-        bottom = ttk.Frame(self); bottom.grid(row=2, column=0, sticky="ew", pady=6)
-
-        ttk.Label(bottom, text="Ödeme Tutarı:").pack(side="left")
-        self.e_amt = ttk.Entry(bottom, width=12); self.e_amt.pack(side="left", padx=6)
-
-        ttk.Label(bottom, text="Not (zorunlu):").pack(side="left")
-        self.e_note = ttk.Entry(bottom, width=30); self.e_note.pack(side="left", padx=6)
-
-        tk.Button(bottom, text="Ödeme Gir", bg="#28a745", fg="white",
-                  font=("Segoe UI", 12, "bold"), height=2,
-                  command=self._odeme).pack(side="left", padx=6)
-
-        tk.Button(bottom, text="Cari Raporu", bg="#6c757d", fg="white",
-                  font=("Segoe UI", 12, "bold"), height=2,
-                  command=self._rapor).pack(side="left", padx=6)
-
-        self.lst.bind("<<TreeviewSelect>>", lambda e: self._load_ledger())
-
-    def _load_suppliers(self):
-        for i in self.lst.get_children(): self.lst.delete(i)
-        for sid,name,balance in database.tedarikci_listesi():
-            self.lst.insert("", "end", values=(sid,name,f"{balance:.2f}"))
-
-    def _get_selected_supplier(self):
-        sel = self.lst.selection()
-        if not sel: return None
-        v = self.lst.item(sel[0], "values")
-        return int(v[0])
-
-    def _load_ledger(self):
-        sid = self._get_selected_supplier()
-        if not sid: return
-        for i in self.ledger.get_children(): self.ledger.delete(i)
-        for d,t,a,n in database.ledger_for_supplier(sid):
-            self.ledger.insert("", "end", values=(d,t,f"{a:.2f}",n))
-
-    def _odeme(self):
-        sid = self._get_selected_supplier()
-        if not sid:
-            messagebox.showwarning("Seçim", "Toptancı seçin.")
-            return
-        note = self.e_note.get().strip()
-        if not note:
-            messagebox.showerror("Zorunlu", "Not alanı zorunludur.")
-            return
+    # ------------------ LİSTEYİ YÜKLE ------------------ #
+    def _toptancilari_yukle(self):
+        for i in self.liste.get_children():
+            self.liste.delete(i)
         try:
-            amt = float(self.e_amt.get().strip())
-        except:
-            messagebox.showerror("Hata", "Tutar sayı olmalıdır.")
-            return
+            con = database.baglan()
+            cur = con.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS suppliers(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT,
+                    tax_number TEXT,
+                    tax_office TEXT,
+                    contact_person TEXT,
+                    phone TEXT,
+                    address TEXT,
+                    balance REAL DEFAULT 0
+                )
+            """)
+            cur.execute("""
+                SELECT id, name, tax_number, tax_office,
+                       contact_person, phone, address, balance
+                FROM suppliers ORDER BY name ASC
+            """)
+            rows = cur.fetchall()
+            con.close()
+            for r in rows:
+                self.liste.insert("", "end", values=r)
+        except Exception as e:
+            messagebox.showerror("Hata", f"Toptancılar yüklenemedi:\n{e}")
 
-        database.cari_odeme_ekle(sid, amt, note)
-        self._load_suppliers()
-        self._load_ledger()
-        messagebox.showinfo("Ödeme", "Ödeme kaydedildi.")
+    # ------------------ EKLE ------------------ #
+    def _toptanci_ekle_penceresi(self):
+        win = tk.Toplevel(self)
+        win.title("Yeni Toptancı Ekle")
+        win.geometry("480x520")
+        win.resizable(False, False)
 
-    def _rapor(self):
-        sid = self._get_selected_supplier()
+        ttk.Label(win, text="Toptancı Ünvanı:").pack(pady=4)
+        e_name = ttk.Entry(win, width=50); e_name.pack()
+        ttk.Label(win, text="Vergi No:").pack(pady=4)
+        e_vno = ttk.Entry(win, width=50); e_vno.pack()
+        ttk.Label(win, text="Vergi Dairesi:").pack(pady=4)
+        e_vd = ttk.Entry(win, width=50); e_vd.pack()
+        ttk.Label(win, text="Sorumlu Kişi:").pack(pady=4)
+        e_sorumlu = ttk.Entry(win, width=50); e_sorumlu.pack()
+        ttk.Label(win, text="Telefon:").pack(pady=4)
+        e_tel = ttk.Entry(win, width=50); e_tel.pack()
+        ttk.Label(win, text="Adres:").pack(pady=4)
+        e_adr = tk.Text(win, width=45, height=3); e_adr.pack(pady=4)
+
+        def kaydet():
+            name = e_name.get().strip()
+            if not name:
+                messagebox.showwarning("Eksik Bilgi", "Toptancı ünvanı zorunludur.")
+                return
+            try:
+                con = database.baglan()
+                cur = con.cursor()
+                cur.execute("""
+                    INSERT INTO suppliers 
+                    (name, tax_number, tax_office, contact_person, phone, address, balance)
+                    VALUES (?, ?, ?, ?, ?, ?, 0)
+                """, (
+                    name,
+                    e_vno.get().strip(),
+                    e_vd.get().strip(),
+                    e_sorumlu.get().strip(),
+                    e_tel.get().strip(),
+                    e_adr.get("1.0", tk.END).strip()
+                ))
+                con.commit(); con.close()
+                messagebox.showinfo("Başarılı", f"{name} eklendi.")
+                win.destroy()
+                self._toptancilari_yukle()
+            except Exception as e:
+                messagebox.showerror("Hata", f"Kayıt başarısız:\n{e}")
+
+        ttk.Button(win, text="Kaydet", command=kaydet).pack(pady=12)
+
+    # ------------------ DÜZELT ------------------ #
+    def _toptanci_duzelt_penceresi(self):
+        sid = self._secili_toptanci_id()
         if not sid:
-            messagebox.showwarning("Seçim", "Toptancı seçin.")
+            messagebox.showwarning("Seçim", "Bir toptancı seçin.")
+            return
+        con = database.baglan()
+        cur = con.cursor()
+        cur.execute("""
+            SELECT name, tax_number, tax_office, contact_person, phone, address 
+            FROM suppliers WHERE id=?
+        """, (sid,))
+        row = cur.fetchone()
+        con.close()
+        if not row:
+            messagebox.showerror("Hata", "Kayıt bulunamadı.")
             return
 
-        win = tk.Toplevel(self); win.title("Cari Raporu")
+        win = tk.Toplevel(self)
+        win.title("Toptancı Düzelt")
+        win.geometry("480x520")
+        win.resizable(False, False)
 
-        ttk.Label(win, text="Başlangıç (YYYY-MM-DD):").grid(row=0, column=0, padx=6, pady=4, sticky="w")
-        e_s = ttk.Entry(win, width=20); e_s.grid(row=0, column=1, padx=6, pady=4)
+        ttk.Label(win, text="Toptancı Ünvanı:").pack(pady=4)
+        e_name = ttk.Entry(win, width=50); e_name.insert(0, row[0]); e_name.pack()
+        ttk.Label(win, text="Vergi No:").pack(pady=4)
+        e_vno = ttk.Entry(win, width=50); e_vno.insert(0, row[1] or ""); e_vno.pack()
+        ttk.Label(win, text="Vergi Dairesi:").pack(pady=4)
+        e_vd = ttk.Entry(win, width=50); e_vd.insert(0, row[2] or ""); e_vd.pack()
+        ttk.Label(win, text="Sorumlu Kişi:").pack(pady=4)
+        e_sorumlu = ttk.Entry(win, width=50); e_sorumlu.insert(0, row[3] or ""); e_sorumlu.pack()
+        ttk.Label(win, text="Telefon:").pack(pady=4)
+        e_tel = ttk.Entry(win, width=50); e_tel.insert(0, row[4] or ""); e_tel.pack()
+        ttk.Label(win, text="Adres:").pack(pady=4)
+        e_adr = tk.Text(win, width=45, height=3); e_adr.insert("1.0", row[5] or ""); e_adr.pack(pady=4)
 
-        ttk.Label(win, text="Bitiş (YYYY-MM-DD):").grid(row=1, column=0, padx=6, pady=4, sticky="w")
-        e_e = ttk.Entry(win, width=20); e_e.grid(row=1, column=1, padx=6, pady=4)
+        def kaydet():
+            name = e_name.get().strip()
+            if not name:
+                messagebox.showwarning("Eksik", "Toptancı ünvanı zorunludur.")
+                return
+            try:
+                con = database.baglan()
+                cur = con.cursor()
+                cur.execute("""
+                    UPDATE suppliers 
+                    SET name=?, tax_number=?, tax_office=?, contact_person=?, phone=?, address=? 
+                    WHERE id=?
+                """, (
+                    name,
+                    e_vno.get().strip(),
+                    e_vd.get().strip(),
+                    e_sorumlu.get().strip(),
+                    e_tel.get().strip(),
+                    e_adr.get("1.0", tk.END).strip(),
+                    sid
+                ))
+                con.commit(); con.close()
+                messagebox.showinfo("Başarılı", "Kayıt güncellendi.")
+                win.destroy()
+                self._toptancilari_yukle()
+            except Exception as e:
+                messagebox.showerror("Hata", f"Güncelleme başarısız:\n{e}")
 
-        tv = ttk.Treeview(win, columns=("TARİH","HAREKET","TUTAR","NOT"), show="headings", height=14)
-        for c in ("TARİH","HAREKET","TUTAR","NOT"):
-            tv.heading(c, text=c); tv.column(c, width=140, anchor="w")
-        tv.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=6, pady=6)
+        ttk.Button(win, text="Kaydet", command=kaydet).pack(pady=12)
 
-        win.columnconfigure(1, weight=1); win.rowconfigure(2, weight=1)
+    # ------------------ SİL ------------------ #
+    def _toptanci_sil(self):
+        sid = self._secili_toptanci_id()
+        if not sid:
+            messagebox.showwarning("Seçim", "Bir toptancı seçin.")
+            return
+        con = database.baglan()
+        cur = con.cursor()
 
-        def run():
-            rows = database.ledger_for_supplier(sid, e_s.get().strip() or None, e_e.get().strip() or None)
-            for i in tv.get_children(): tv.delete(i)
-            borc = alacak = 0
-            for d,t,a,n in rows:
-                tv.insert("", "end", values=(d,t,f"{a:.2f}",n))
-                if t=="purchase": borc += abs(a)
-                elif t=="payment": alacak += abs(a)
-            color = "red" if borc>alacak else "green"
-            tk.Label(win, text=f"BORÇ: {borc:.2f} | ALACAK: {alacak:.2f}", fg=color,
-                     font=("Segoe UI", 12, "bold")).grid(row=3, column=0, columnspan=2, pady=6)
+        hareket_sayisi = 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM purchases WHERE supplier_id=?", (sid,))
+            hareket_sayisi += cur.fetchone()[0]
+        except:
+            pass
+        try:
+            cur.execute("SELECT COUNT(*) FROM supplier_ledger WHERE supplier_id=?", (sid,))
+            hareket_sayisi += cur.fetchone()[0]
+        except:
+            pass
 
-        tk.Button(win, text="Getir", bg="#007bff", fg="white",
-                  font=("Segoe UI", 12, "bold"), height=2,
-                  command=run).grid(row=0, column=2, rowspan=2, padx=6, pady=4, sticky="ns")
+        if hareket_sayisi > 0:
+            con.close()
+            messagebox.showwarning("Engellendi", "Bu toptancının cari hareketleri var, silinemez.")
+            return
+
+        if not messagebox.askyesno("Onay", "Bu toptancıyı silmek istiyor musunuz?"):
+            con.close(); return
+
+        try:
+            cur.execute("DELETE FROM suppliers WHERE id=?", (sid,))
+            con.commit(); con.close()
+            self._toptancilari_yukle()
+            messagebox.showinfo("Silindi", "Toptancı başarıyla silindi.")
+        except Exception as e:
+            con.close()
+            messagebox.showerror("Hata", f"Silme başarısız:\n{e}")
+
+    # ------------------ CARI DEFTERI ------------------ #
+    def _cari_defterini_goster(self):
+        messagebox.showinfo("Bilgi", "Cari defteri özelliği bir sonraki sürümde aktif edilecek.")
+
+    # ------------------ YARDIMCI ------------------ #
+    def _secili_toptanci_id(self):
+        secim = self.liste.selection()
+        if not secim:
+            return None
+        degerler = self.liste.item(secim[0])["values"]
+        return degerler[0] if degerler else None
